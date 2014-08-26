@@ -3,22 +3,30 @@
 #include <ctime>
 #include <time.h>
 #include <string>
+#include <cstring> 
+#include <iomanip>
 #include <termios.h>
 #include <unistd.h>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <inttypes.h>
 #include <ostream>
+#include <netdb.h> 
 #include <math.h>
+
+#ifdef VIEWER
 #include <osgViewer/Viewer>
 #include <osg/ShapeDrawable>
 #include <osgText/Text>
 #include <osg/Geode>
+#endif
 
 using namespace std;
 
@@ -38,6 +46,7 @@ using namespace std;
 #define BRAKE_COIL 10
 //modbus_t *ctx;
 
+#ifdef VIEWER
 osgViewer::Viewer viewer;
 osg::Vec3Array* stopVertices = new osg::Vec3Array(NUM_VERTS);
 osg::Vec3Array* brakeVertices = new osg::Vec3Array(NUM_VERTS);
@@ -47,7 +56,30 @@ osg::Vec3Array* originVertices = new osg::Vec3Array(NUM_VERTS);
 osg::Vec3Array* recorder_vertices = new osg::Vec3Array(NUM_VERTS);
 osg::Vec3Array* diff_vertices = new osg::Vec3Array(NUM_VERTS);
 
+osg::ref_ptr<osg::Group> root (new osg::Group);
+osg::ref_ptr<osg::Geode> myshapegeode (new osg::Geode);
+osg::ref_ptr<osg::Capsule> myCapsule (new osg::Capsule(osg::Vec3f(),1,2));
+osg::ref_ptr<osg::ShapeDrawable> capsuledrawable (new osg::ShapeDrawable(myCapsule.get()));
+osgText::Text* myText = new osgText::Text();
+#endif
+
 inline double deg2rad(const double val) { return val*0.0174532925199432957692369076848861;}
+
+
+float sigmoid(float x)
+{
+     float exp_value;
+     float return_value;
+
+     /*** Exponential calculation ***/
+     exp_value = exp((double) -x);
+
+     /*** Final sigmoid value ***/
+     return_value = 1 / (1 + exp_value);
+
+     return return_value;
+}
+
 
 int fd_serialport;
 int byteCounter = 0;
@@ -55,6 +87,11 @@ unsigned char inputBuffer[255];
 unsigned int scanData[542];
 char scanNumber[256];
 int totalBytesRead = 0;
+
+int    status;
+struct addrinfo host_info;       
+struct addrinfo *host_info_list; 
+int    socketfd ;
 
 int read(int bytes)
 {
@@ -117,8 +154,26 @@ void initSerial()
 
 int foundHeader = 0;
 
+
+string getResponseForMsg(string msg){
+    send(socketfd, msg.c_str() , msg.length(), 0);
+    char recvbuf[512];
+    ssize_t bytes_received = recv(socketfd, recvbuf,512, 0);
+    string receivedString;                        
+    receivedString.assign(recvbuf,bytes_received); 
+    char ch = *receivedString.rbegin();
+    printf ("Last character is %c \n", ch);
+    if (bytes_received == 0) {
+        printf ("host shut down.\n");
+    }
+    if (bytes_received == -1)  {
+        printf ("receive error!\n");
+    }
+    return receivedString;
+}
+
 void updateData() {
-    //discard characters until we see four byte header = 00 00 00 
+    //discard characters until we see four byte header = 00 00 00 00
 #define DEBUG_UPDATE 0
     int zeroCounter = 0;
     int byteCounter = 0; 
@@ -320,17 +375,17 @@ void updateVerts()
         #define velocity_cm 110
 
         //deceleration rate 
-        #define decel_cm 20
+        #define decel_cm 25 //20
         
         //this is the distance it takes to decel from max velocity to zero at given rate
         #define y_fullspeed (y_forward + 0.5*(velocity_cm^2)/decel_cm)  
         
         //this is the braking buffer between the decel and stop zones
         // half of the stop size for starters
-        #define y_brakezone 61
+        #define y_brakezone 80 //61
 
         // this is the total distance of the stop field plus the decel zone 
-        #define y_distance (y_forward+y_brakezone+y_fullspeed)
+        #define y_distance (y_forward+y_brakezone+2*y_fullspeed)
 
 	//saving the angle for the closest measurement
 	if((int)meas < closest_meas && y>0){
@@ -340,58 +395,111 @@ void updateVerts()
 
         //stop field
         if (x < x_width && x > -x_width && y < y_forward && y > 0) {
+#ifdef VIEWER
             (*stopVertices)[baseVert].set(0,0,0);  //baseVert will always be (0,0,0) for origin
             (*stopVertices)[tipVert].set(x, y, z);  //data point
+#endif
             if (y < closest_y_cm) {
                 closest_y_cm = y;
             }
         } else {
+#ifdef VIEWER
             (*stopVertices)[baseVert].set(0,0,0);  //baseVert will always be (0,0,0) for origin
             (*stopVertices)[tipVert].set(0,0,0);  //data point        
+#endif
             stop--;
         }
 
         //braking zone
         if (x < x_width && x > -x_width && y >= y_forward && y < (y_forward + y_brakezone)) {
+#ifdef VIEWER
             (*brakeVertices)[baseVert].set(0,0,0);  //baseVert will always be (0,0,0) for origin
             (*brakeVertices)[tipVert].set(x, y, z);  //data point
+#endif
             if (y < closest_y_cm) {
                 closest_y_cm = y;
             }
         } else {
+#ifdef VIEWER
             (*brakeVertices)[baseVert].set(0,0,0);  //baseVert will always be (0,0,0) for origin
             (*brakeVertices)[tipVert].set(0,0,0);  //data point        
+#endif
         }
 
         //slow field
         if (x < x_width && x > -x_width && y >= (y_forward+y_brakezone) && y < y_distance) {
+#ifdef VIEWER
             (*slowVertices)[baseVert].set(0,0,0);  //baseVert will always be (0,0,0) for origin
             (*slowVertices)[tipVert].set(x, y, z);  //data point
+#endif
             if (y < closest_y_cm) {
                 closest_y_cm = y;
+		printf ("closest_y_cm: %d \n",closest_y_cm); 
             }
         } else {
+#ifdef VIEWER
             (*slowVertices)[baseVert].set(0,0,0);  //baseVert will always be (0,0,0) for origin
             (*slowVertices)[tipVert].set(0,0,0);  //data point        
+#endif
         }
         
+#ifdef VIEWER
         (*outlineVertices)[baseVert].set(px, py, pz);  //data point
         (*outlineVertices)[tipVert].set(x, y, z);  //data point
+#endif
         px = x;  py = y; pz = z;
         //printf ("scan: %s, index: %d, r: %u, deg: %.1f, rad: %0.4f x: %d, y: %d, z: %d\n", scanNumber, scanIndex, meas, degrees, rads, x, y, z);
     }
 
-    tdist = closest_y_cm - (y_forward+y_brakezone);
+    tdist = closest_y_cm - (-30 + y_forward+y_brakezone);  
     if (tdist < 0){
-        tdist = 0;}
-    speed = sqrt (2.0*tdist * decel_cm);
-    if (speed!=speed){
-        speed = 0;}
-    if (speed > velocity_cm) speed = velocity_cm;
+	tdist = 0;}
+    //speed = sqrt (2.0*tdist * decel_cm);
+    //speed = 7*pow (tdist/(y_distance),2)/3;
+    //speed = pow(tdist/(2*y_fullspeed),1.5);
+    float ratio = tdist/(2*y_fullspeed);
+    float p1 = 2.491;
+    float p2 = -2.938;
+    float p3 = 1.482;
+    float p4 = -0.04665;
+    speed = p1*pow(ratio,3)+p2*pow(ratio,2)+p3*pow(ratio,1)+p4*pow(ratio,0);
+    if (speed > 1) speed = 1;
+    if (speed < 0) speed = 0;
     if (stop) speed = 0;
-    double percent_speed = 100*speed/velocity_cm;
+    if (speed != speed){
+       speed = 0;}
+
+    string response;
+    string sendCommand,sendGalilFullCommand;
+    string secondCommand;
+    //keep sending messages in this loop           
+    sendCommand = "p408=";
+    // secondCommand = ""
+    // sendMessage  = speed;
+    char speedChar[21];
+
+    float percent_speed = speed;
+    sprintf(speedChar,"%f",percent_speed);
+    sendGalilFullCommand = sendCommand+speedChar+"\r"; 
+    //printf("The sent command is %s\n",sendGalilFullCommand);
+    cout << "Sent command is " << sendGalilFullCommand << "\n" ; 
+    //response = getResponseForMsg("QS\r");  //, sizeof locMsg );
+    response = getResponseForMsg(sendGalilFullCommand);  //, sizeof locMsg );
+    //cout << "Full Response: " <<response << " and count is " << count << endl;
+    printf("Full Response: %s \n", response.c_str()); 
+    
     printf("epoch: %d, scanNumber: %s, totalBytesRead: %d, stop: %d, closest_y: %d, closest_reading:%d angle: %f speed: %f percent_speed: %f \n", (int)time(0), scanNumber, totalBytesRead, stop, closest_y_cm, closest_meas, angle, speed, percent_speed);
 
+
+    char output[256] = "";
+    sprintf(output,"speed: %f, percent_speed: %f\n", speed, percent_speed);
+
+#ifdef VIEWER
+    myText->setText(output);
+#endif
+    //viewer.setSceneData( root.get() );
+
+ 
     //modbus_write_register(ctx, SAFE_SPEED_REGISTER, percent_speed);
     //modbus_write_register(ctx, OBSTRUCTION_ANGLE_REGISTER, ((int)(180 - (int)angle)/10) * 10) ;
     //modbus_write_bit(ctx, BRAKE_COIL, percent_speed);
@@ -405,6 +513,7 @@ void updateVerts()
     (*originVertices)[5].set(0, 0, 2000);  //data point
 */
     //lc footprint - must stop outside of this
+#ifdef VIEWER
     (*originVertices)[6].set(-x_width, 0,0);  //baseVert will always be (0,0,0) for origin
     (*originVertices)[7].set(x_width,  0, 0);  //data point
     (*originVertices)[8].set(-x_width, 0, 0);  //baseVert will always be (0,0,0) for origin
@@ -425,7 +534,7 @@ void updateVerts()
 
     (*originVertices)[22].set(-x_width, y_forward+y_brakezone, 0);  //baseVert will always be (0,0,0) for origin
     (*originVertices)[23].set(x_width, y_forward+y_brakezone, 0);  //data point
-
+#endif
 
 /*   
     (*originVertices)[6].set(0,0,0);  //baseVert will always be (0,0,0) for origin
@@ -449,6 +558,7 @@ void updateVerts()
 
 }
 
+#ifdef VIEWER
 void updateVerts_old()
 {
     int reading = 0;
@@ -476,8 +586,9 @@ void updateVerts_old()
         reading++;
     }
 }
+#endif
 
-
+#ifdef VIEWER
 class redrawCallback : public osg::NodeCallback
 {
 public:
@@ -489,21 +600,23 @@ public:
         //usleep(1);
     }
 };
+#endif
 
+#ifdef VIEWER
 
 int initViewer()
 {
     //Creating the root node
-    osg::ref_ptr<osg::Group> root (new osg::Group);
+    //osg::ref_ptr<osg::Group> root (new osg::Group);
 
     //The geode containing our shpae
-    osg::ref_ptr<osg::Geode> myshapegeode (new osg::Geode);
+    //osg::ref_ptr<osg::Geode> myshapegeode (new osg::Geode);
 
     //Our shape: a capsule, it could have been any other geometry (a box, plane, cylinder etc.)
-    osg::ref_ptr<osg::Capsule> myCapsule (new osg::Capsule(osg::Vec3f(),1,2));
+    //osg::ref_ptr<osg::Capsule> myCapsule (new osg::Capsule(osg::Vec3f(),1,2));
 
     //Our shape drawable
-    osg::ref_ptr<osg::ShapeDrawable> capsuledrawable (new osg::ShapeDrawable(myCapsule.get()));
+    //osg::ref_ptr<osg::ShapeDrawable> capsuledrawable (new osg::ShapeDrawable(myCapsule.get()));
 
     //myshapegeode->addDrawable(capsuledrawable.get());
 
@@ -598,7 +711,7 @@ int initViewer()
     //The geode containing our shpae
     osg::ref_ptr<osg::Geode> myTextGeode (new osg::Geode);
     
-    osgText::Text* myText = new osgText::Text();
+    //osgText::Text* myText = new osgText::Text();
 
     // Geode - Since osgText::Text is a derived class from drawable, we 
     // must add it to an osg::Geode before we can add it to our ScenGraph.
@@ -642,7 +755,7 @@ int initViewer()
     //The viewer.run() method starts the threads and the traversals.
     return (viewer.run());
 }
-
+#endif
 
 
 int main ()
@@ -661,6 +774,26 @@ int main ()
     printf("\n MODBUS CONNECTED!!");
 */
 
+    memset(&host_info, 0, sizeof host_info);
+    host_info.ai_family   = AF_UNSPEC;     
+    host_info.ai_socktype = SOCK_STREAM; 
+    status = getaddrinfo("10.0.0.7", "1001", &host_info, &host_info_list);
+    // getaddrinfo returns 0 on succes, or some other value when an error occured.
+    if (status != 0)  printf ("getaddrinfo ", gai_strerror(status));
+    printf ("Creating a socket...\n");
+    socketfd = socket(host_info_list->ai_family, host_info_list->ai_socktype,
+                      host_info_list->ai_protocol);
+    if (socketfd == -1)  printf ("socket error ");
+    printf ("Connecting to the sensor's socket...\n");
+    status = connect(socketfd, host_info_list->ai_addr, host_info_list->ai_addrlen);
+    if (status == -1)  printf ("connect error\n") ;
+    else printf ("Connection successful, lets go grab some data\n") ;
+    
+    /*cout << "Receiving complete. Closing socket..." << endl;
+    freeaddrinfo(host_info_list);
+    close(socketfd);
+    return 0;*/
+
 #define SERIAL_ONLY_TEST 0
 #if SERIAL_TEST
     while (1) {    
@@ -677,7 +810,9 @@ int main ()
     initSerial();
     updateData();
     updateVerts();
+#ifdef VIEWER
     initViewer();
+#endif
 while(1){
     updateData();
     updateVerts();
