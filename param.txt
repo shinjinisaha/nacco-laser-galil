@@ -1,0 +1,11 @@
+coefOrder1 3232
+coefOrder2 1231
+coefOrder3 332
+coefOrder0 3214
+x_width 324
+y_forward 234
+velocity_cm 110
+decel_cm 213
+y_fullspeed 23
+y_brakezone 23
+y_distance 123

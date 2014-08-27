@@ -65,6 +65,33 @@ osgText::Text* myText = new osgText::Text();
 
 inline double deg2rad(const double val) { return val*0.0174532925199432957692369076848861;}
 
+///////////////////////////////global variables for speed calculation//////
+
+    float coefOrder3 = 2.491;
+    float coefOrder2 = -2.938;
+    float coefOrder1 = 1.482;
+    float coefOrder0 = -0.04665;
+    float testFloat = 1.234;
+float  x_width =  83;  // 33 inches in cm
+        //distance of the stop field
+        // 48 inches in cm
+       float  y_forward =  122; 
+        //top speed is 1.1m/s
+        float velocity_cm =  110;
+        //deceleration rate 
+        float decel_cm =  25; //20
+        //this is the distance it takes to decel from max velocity to zero at given rate
+        float y_fullspeed =  (y_forward + 0.5*pow(velocity_cm,2)/decel_cm);  
+        //this is the braking buffer between the decel and stop zones
+        // half of the stop size for starters
+        float y_brakezone =  80; //61
+        // this is the total distance of the stop field plus the decel zone 
+        float y_distance =  (y_forward+y_brakezone+2*y_fullspeed);
+
+
+
+
+
 
 float sigmoid(float x)
 {
@@ -362,7 +389,7 @@ void updateVerts()
         int x = meas * cos(rads);
         int y = meas * sin(rads);
         int z = 0;
-        
+   /*     
         //width on each side (total width id 166cm = 66 inches=  15+ 36 + 15 
         // 33 inches in cm
         #define x_width 83 
@@ -386,7 +413,7 @@ void updateVerts()
 
         // this is the total distance of the stop field plus the decel zone 
         #define y_distance (y_forward+y_brakezone+2*y_fullspeed)
-
+*/
 	//saving the angle for the closest measurement
 	if((int)meas < closest_meas && y>0){
 		closest_meas = meas;
@@ -458,11 +485,8 @@ void updateVerts()
     //speed = 7*pow (tdist/(y_distance),2)/3;
     //speed = pow(tdist/(2*y_fullspeed),1.5);
     float ratio = tdist/(2*y_fullspeed);
-    float p1 = 2.491;
-    float p2 = -2.938;
-    float p3 = 1.482;
-    float p4 = -0.04665;
-    speed = p1*pow(ratio,3)+p2*pow(ratio,2)+p3*pow(ratio,1)+p4*pow(ratio,0);
+    speed = coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
+    cout << "float value is " << testFloat;
     if (speed > 1) speed = 1;
     if (speed < 0) speed = 0;
     if (stop) speed = 0;
@@ -758,6 +782,7 @@ int initViewer()
 #endif
 
 
+
 int main ()
 {
 /*    
@@ -773,6 +798,72 @@ int main ()
     else
     printf("\n MODBUS CONNECTED!!");
 */
+ float coefOrder3 = 2.491;
+    float coefOrder2 = -2.938;
+    float coefOrder1 = 1.482;
+    float coefOrder0 = -0.04665;
+float  x_width =  83;  // 33 inches in cm
+        //distance of the stop field
+        // 48 inches in cm
+       float  y_forward =  122;
+        //top speed is 1.1m/s
+        float velocity_cm =  110;
+        //deceleration rate 
+        float decel_cm =  25; //20
+        //this is the distance it takes to decel from max velocity to zero at given rate
+        float y_fullspeed =  (y_forward + 0.5*pow(velocity_cm,2)/decel_cm);
+        //this is the braking buffer between the decel and stop zones
+        // half of the stop size for starters
+        float y_brakezone =  80; //61
+        // this is the total distance of the stop field plus the decel zone 
+        float y_distance =  (y_forward+y_brakezone+2*y_fullspeed);
+
+ifstream fin("param.txt");
+string param_name;
+int param_value;
+
+cout << "before  " <<coefOrder3 << "\n" << coefOrder2 << "\n" << coefOrder1 << "\n" << coefOrder0 << "\n";
+
+while ( fin >> param_name >> param_value )
+{
+cout << "The param name is "<<param_name<<"\n The param value is "<<param_value << "\n";
+  if (!param_name.compare("coefOrder3")){
+  coefOrder3 = param_value;}
+
+  if (!param_name.compare("coefOrder2")){
+  coefOrder2 = param_value;}
+
+  if (!param_name.compare("coefOrder1")){
+  coefOrder1 = param_value;}
+
+  if (!param_name.compare("coefOrder0")){
+  coefOrder0 = param_value;}
+
+  if (!param_name.compare("x_width")){
+  x_width = param_value;}
+
+  if (!param_name.compare("y_forward")){
+  y_forward = param_value;}
+
+  if (!param_name.compare("velocity_cm")){
+  velocity_cm = param_value;}
+
+  if (!param_name.compare("decel_cm")){
+  decel_cm = param_value;}
+
+  if (!param_name.compare("y_fullspeed")){
+  y_fullspeed = param_value;}
+
+  if (!param_name.compare("y_brakezone")){
+  y_brakezone = param_value;}
+
+  if (!param_name.compare("y_distance")){
+  y_distance = param_value;}
+
+}
+fin.close();
+cout << "after  " <<coefOrder3 << "\n" << coefOrder2 << "\n" << coefOrder1 << "\n" << coefOrder0 << "\n";
+
 
     memset(&host_info, 0, sizeof host_info);
     host_info.ai_family   = AF_UNSPEC;     
@@ -819,3 +910,4 @@ while(1){
 }
     return 0;
 }
+
