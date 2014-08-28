@@ -67,43 +67,36 @@ inline double deg2rad(const double val) { return val*0.0174532925199432957692369
 
 ///////////////////////////////global variables for speed calculation//////
 
-    float coefOrder3 = 2.491;
-    float coefOrder2 = -2.938;
-    float coefOrder1 = 1.482;
-    float coefOrder0 = -0.04665;
-    float testFloat = 1.234;
+float coefOrder6 = 0.0;  
+float coefOrder5 = 0.0;  
+float coefOrder4 = 0.0;  
+float coefOrder3 = 2.491;
+float coefOrder2 = -2.938;
+float coefOrder1 = 1.482;
+float coefOrder0 = -0.04665;
+float testFloat = 1.234;
 float  x_width =  83;  // 33 inches in cm
         //distance of the stop field
         // 48 inches in cm
-       float  y_forward =  122; 
+float  y_forward =  122; 
         //top speed is 1.1m/s
-        float velocity_cm =  110;
+float velocity_cm =  110;
         //deceleration rate 
-        float decel_cm =  25; //20
+float decel_cm =  20; //20
         //this is the distance it takes to decel from max velocity to zero at given rate
-        float y_fullspeed =  (y_forward + 0.5*pow(velocity_cm,2)/decel_cm);  
+float y_fullspeed =  (y_forward + 0.5*pow(velocity_cm,2)/decel_cm);  
         //this is the braking buffer between the decel and stop zones
         // half of the stop size for starters
-        float y_brakezone =  80; //61
+float y_brakezone =  80; //61
         // this is the total distance of the stop field plus the decel zone 
-        float y_distance =  (y_forward+y_brakezone+2*y_fullspeed);
-
-
-
-
-
+float y_distance =  (y_forward+y_brakezone+y_fullspeed);
 
 float sigmoid(float x)
 {
      float exp_value;
      float return_value;
-
-     /*** Exponential calculation ***/
      exp_value = exp((double) -x);
-
-     /*** Final sigmoid value ***/
      return_value = 1 / (1 + exp_value);
-
      return return_value;
 }
 
@@ -389,31 +382,6 @@ void updateVerts()
         int x = meas * cos(rads);
         int y = meas * sin(rads);
         int z = 0;
-   /*     
-        //width on each side (total width id 166cm = 66 inches=  15+ 36 + 15 
-        // 33 inches in cm
-        #define x_width 83 
-
-        //distance of the stop field
-        // 48 inches in cm
-        #define y_forward 122 
-
-        //top speed is 1.1m/s
-        #define velocity_cm 110
-
-        //deceleration rate 
-        #define decel_cm 25 //20
-        
-        //this is the distance it takes to decel from max velocity to zero at given rate
-        #define y_fullspeed (y_forward + 0.5*(velocity_cm^2)/decel_cm)  
-        
-        //this is the braking buffer between the decel and stop zones
-        // half of the stop size for starters
-        #define y_brakezone 80 //61
-
-        // this is the total distance of the stop field plus the decel zone 
-        #define y_distance (y_forward+y_brakezone+2*y_fullspeed)
-*/
 	//saving the angle for the closest measurement
 	if((int)meas < closest_meas && y>0){
 		closest_meas = meas;
@@ -478,15 +446,21 @@ void updateVerts()
         //printf ("scan: %s, index: %d, r: %u, deg: %.1f, rad: %0.4f x: %d, y: %d, z: %d\n", scanNumber, scanIndex, meas, degrees, rads, x, y, z);
     }
 
-    tdist = closest_y_cm - (-30 + y_forward+y_brakezone);  
+    tdist = closest_y_cm - (y_forward+y_brakezone);  
+    float ratio = tdist/y_distance;
+    if (tdist > y_distance){
+        ratio = 1;}             
     if (tdist < 0){
 	tdist = 0;}
     //speed = sqrt (2.0*tdist * decel_cm);
     //speed = 7*pow (tdist/(y_distance),2)/3;
     //speed = pow(tdist/(2*y_fullspeed),1.5);
-    float ratio = tdist/(2*y_fullspeed);
-    speed = coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
-    cout << "float value is " << y_fullspeed << " and ratio is " << ratio << coefOrder0 << " " << coefOrder1 <<  "\n";
+    cout <<"tdies " << tdist << "  y distat "  <<  y_distance << "ration is " <<  "\n";
+//    speed = coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
+  
+
+    speed =coefOrder6*pow(ratio,6)+coefOrder5*pow(ratio,5)+coefOrder4*pow(ratio,4)+ coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
+    cout << "float value is " << y_fullspeed << " and ratio is " << ratio << " and speed value is " << speed <<   "\n";
     if (speed > 1) speed = 1;
     if (speed < 0) speed = 0;
     if (stop) speed = 0;
@@ -844,6 +818,8 @@ cout << "The param name is "<<param_name<<"\n The param value is "<<param_value 
 }
 fin.close();
 cout << "after  " << "Coef3" << coefOrder3 << "\n" << "coef2" << coefOrder2 << "\n" <<"coef1" << coefOrder1 << "\n" << "coef0" << coefOrder0 << "\n" <<"x_wodth" <<  x_width << "\n" <<"y_forward" <<  y_forward << "\n" << "velocoity cm" <<  velocity_cm << "\n" <<"decel cm" <<  decel_cm << "\n" << " y_full sped" << y_fullspeed << "\n" ;
+
+    y_distance = y_forward + y_fullspeed + y_brakezone;
 
 
     memset(&host_info, 0, sizeof host_info);
