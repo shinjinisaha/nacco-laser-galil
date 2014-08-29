@@ -453,9 +453,6 @@ void updateVerts()
         ratio = 1;}             
     if (tdist < 0){
 	tdist = 0;}
-    //speed = sqrt (2.0*tdist * decel_cm);
-    //speed = 7*pow (tdist/(y_distance),2)/3;
-    //speed = pow(tdist/(2*y_fullspeed),1.5);
     cout <<"tdies " << tdist << "  y distat "  <<  y_distance << "ration is " <<  "\n";
 //    speed = coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
   
