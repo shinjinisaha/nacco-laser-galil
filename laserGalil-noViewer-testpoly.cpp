@@ -66,9 +66,10 @@ osgText::Text* myText = new osgText::Text();
 inline double deg2rad(const double val) { return val*0.0174532925199432957692369076848861;}
 inline double rad2deg(const double val) { return val/0.0174532925199432957692369076848861;}
 ///////////////////////////////global variables //////
-float wheelBase    = 30;
-float axleLength   = 40;
-float laserToSteer = 10;
+float wheelBase    = 48.0*2.54;   //48 inches
+float axleLength   = 26.5*2.54;   //26.5 inches 
+float laserToSteer = 11.5*2.54;   //11.5 inches 
+
 
 float coefOrder6 = 0.0;  
 float coefOrder5 = 0.0; 
@@ -77,6 +78,7 @@ float coefOrder3 = 2.491;
 float coefOrder2 = -2.938;
 float coefOrder1 = 1.482;
 float coefOrder0 = -0.04665;
+
 float testFloat = 1.234;
 float  x_width =  83;  // 33 inches in cm
         //distance of the stop field
@@ -367,13 +369,14 @@ void findRadius(float steerAngle,float x_offsetFromLaserZero,float y_offsetFromL
 //cin  >> x_offsetFromLaserZero;
 //cout << "Enter the y_offsetFromLaserZero from the laser of the truck: " ;
 //cin  >> y_offsetFromLaserZero; 
+steerAngle = deg2rad(steerAngle);
 float y_effective = y_offsetFromLaserZero + wheelBase + laserToSteer; //y_offsetFromLaserZero positive if infront of truck, vice versa.mesured from laser data origin   
 float x_effective       = -x_offsetFromLaserZero + wheelBase/tan(steerAngle) ; //check steering angle = 0 case in code
 radius                  = sqrt ( pow(y_effective,2) + pow(x_effective,2) );
 float thetaToTruckStart = asin((wheelBase + laserToSteer)/radius);
 float thetaAtPoint      = asin(y_effective/radius);
-lengthUntilTruck        = radius*(thetaAtPoint - thetaToTruckStart);
-cout << " radius is found to be : " << radius << "  length until truck is " << lengthUntilTruck << " Theta to truck start " << thetaToTruckStart << " Theta at point "  << thetaAtPoint << "\n";
+lengthUntilTruck        = abs(radius*(thetaAtPoint - thetaToTruckStart));
+//cout << " radius is found to be : " << radius << "  length until truck is " << lengthUntilTruck << " Theta to truck start " << thetaToTruckStart << " Theta at point "  << thetaAtPoint << "\n";
 return;
 }       
 
@@ -395,6 +398,23 @@ void updateVerts()
     float ratio;
     bool FLAG_STRAIGHT_FIELD = true; 
     float tillerAngle;
+    string response;
+int closest_r_cm = 5000;
+
+
+    response    = getResponseForMsg("MG_ TPB\r");  //, sizeof locMsg );
+    tillerAngle = atoi(response.c_str());
+    cout << " tillerAngleObserved is " << tillerAngle << endl;
+
+    tillerAngle = -45;
+        float radiusRightExtreme;
+        float radiusLeftExtreme;
+        float dummy;
+
+	findRadius(tillerAngle , axleLength/2 + x_width , 0 , radiusRightExtreme, dummy );
+        findRadius(tillerAngle , -(axleLength/2 + x_width) , 0 , radiusLeftExtreme, dummy);
+
+cout << " extremes are  " << radiusRightExtreme  << " and " << radiusLeftExtreme << " \n";
     //for (int scanIndex = 0; scanIndex<542; scanIndex++) {
     for (int scanIndex = 0; scanIndex<541; scanIndex++) {
         unsigned int meas = scanData[scanIndex];
@@ -408,33 +428,24 @@ void updateVerts()
         }
 
         double rads = deg2rad(degrees);  //convert to radians for trig 
-
         int x = meas * cos(rads);
         int y = meas * sin(rads);
         int z = 0;
 ////////////////////////// start edits for fields during turns////////////////
         float radiusObstacle;
         float lengthToObstacle;
-        float radiusRightExtreme;
-        float radiusLeftExtreme;
         float dummy;
         
-        if (abs(rad2deg(angle)) > 5)   //check turning
+        if (abs(tillerAngle) > 5)   //check turning
         {
 		findRadius(tillerAngle , x , y , radiusObstacle, lengthToObstacle); // radius and length to truck of obstacle
-        	findRadius(tillerAngle , axleLength/2 + x_width , 0 , radiusRightExtreme, dummy );
-        	findRadius(tillerAngle , -(axleLength/2 + x_width) , 0 , radiusLeftExtreme, dummy);
 		FLAG_STRAIGHT_FIELD = false;
-
-		if  (~((radiusObstacle >= radiusLeftExtreme)^(radiusObstacle <= radiusRightExtreme)))   //obstacle in field
+		if  ( (radiusObstacle-radiusLeftExtreme)*(radiusObstacle-radiusRightExtreme) < 0)   //obstacle in field
 		{
-			if (~(abs(lengthToObstacle) >= (radiusLeftExtreme + radiusRightExtreme)*3.14159265359/2)) // obstacle beyond 
-			{	
-				tdist = abs(lengthToObstacle)-(y_forward+y_brakezone);
-			}
-			else
+	       // cout << "value of obstacle is " << radiusObstacle   << " and length is " << lengthToObstacle <<  endl ;	
+			if (lengthToObstacle < closest_r_cm)
 			{
-				tdist = y_distance;
+				closest_r_cm = lengthToObstacle;
 			}
 			
 		}
@@ -506,20 +517,27 @@ void updateVerts()
         //printf ("scan: %s, index: %d, r: %u, deg: %.1f, rad: %0.4f x: %d, y: %d, z: %d\n", scanNumber, scanIndex, meas, degrees, rads, x, y, z);
     }
 
+cout << " RE " << radiusRightExtreme << " LE " << radiusLeftExtreme <<  " closest_r_c " << closest_r_cm << endl;
+    if (closest_r_cm > ((radiusLeftExtreme + radiusRightExtreme)*3.14159265359/2)) {
+	closest_r_cm = y_distance;}
     if (FLAG_STRAIGHT_FIELD)
     {
     	tdist = closest_y_cm - (y_forward+y_brakezone);  
     }
-   	cout << "Tdist is " << tdist << "\n" ;
-    	ratio = tdist/(y_distance - (y_forward+y_brakezone));
-    	if (tdist > y_distance){
-        	ratio = 1;}             
-    	if (tdist < 0){
+    else 
+    {
+	tdist = closest_r_cm - (y_forward + y_brakezone);
+    }
+   cout << " Tdist is " << tdist << " with bool value " << FLAG_STRAIGHT_FIELD << "\n" ;
+    if (tdist > y_distance){
+        	tdist = y_distance;}             
+    if (tdist < 0){
 		tdist = 0;}
+    ratio = tdist/(y_distance - (y_forward+y_brakezone));
+ 
     //speed = sqrt (2.0*tdist * decel_cm);
     //speed = 7*pow (tdist/(y_distance),2)/3;
     //speed = pow(tdist/(2*y_fullspeed),1.5);
-    cout <<"tdies " << tdist << "  y distat "  <<  y_distance << "ration is " <<  "\n";
 //    speed = coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
   
 
@@ -531,7 +549,6 @@ void updateVerts()
     if (speed != speed){
        speed = 0;}
 
-    string response;
     string sendCommand,sendGalilFullCommand;
     string secondCommand;
     //keep sending messages in this loop           
@@ -545,10 +562,11 @@ void updateVerts()
     sendGalilFullCommand = sendCommand+speedChar+"\r"; 
     //printf("The sent command is %s\n",sendGalilFullCommand);
     cout << "Sent command is " << sendGalilFullCommand << "\n" ; 
-    //response = getResponseForMsg("QS\r");  //, sizeof locMsg );
+//    response = getResponseForMsg("MG_ TPB\r");  //, sizeof locMsg );
     response = getResponseForMsg(sendGalilFullCommand);  //, sizeof locMsg );
     //cout << "Full Response: " <<response << " and count is " << count << endl;
-    printf("Full Response: %s \n", response.c_str()); 
+//    cout << "The response is lalalalla" << std::string::stof(response) << " and the value after scaling is "  << std::stof(response)*27.77 << "\n" ; 
+     printf("Full Response: %s \n", response.c_str()); 
     
     printf("epoch: %d, scanNumber: %s, totalBytesRead: %d, stop: %d, closest_y: %d, closest_reading:%d angle: %f speed: %f percent_speed: %f \n", (int)time(0), scanNumber, totalBytesRead, stop, closest_y_cm, closest_meas, angle, speed, percent_speed);
 
