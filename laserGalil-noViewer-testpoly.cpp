@@ -65,7 +65,11 @@ osgText::Text* myText = new osgText::Text();
 
 inline double deg2rad(const double val) { return val*0.0174532925199432957692369076848861;}
 
-///////////////////////////////global variables for speed calculation//////
+///////////////////////////////global variables //////
+float wheelBase    = 30;
+float axleLength   = 40;
+float laserToSteer = 10;
+
 
 float coefOrder6 = 0.0;  
 float coefOrder5 = 0.0; 
@@ -357,6 +361,30 @@ int stop;
 double speed;
 double tdist;
 
+void findRadius(float steerAngle,float x_offsetFromLaserZero,float y_offsetFromLaserZero, float &radius, float &lengthUntilTruck)  //wheelBase = dist from steering wheel to read wheel axle, and the x_offset , y_offsetFromLaserZero are offsets from the origin in from of robot
+{
+//From global     wheelBase, axleLength , x_width, laserToSteer
+cout << "Enter the x_offset from the laser of the truck: ";
+cin  >> x_offsetFromLaserZero;
+cout << "Enter the y_offsetFromLaserZero from the laser of the truck: " ;
+cin  >> y_offsetFromLaserZero; 
+float y_effective = y_offsetFromLaserZero + wheelBase + laserToSteer; //y_offsetFromLaserZero positive if infront of truck, vice versa.mesured from laser data origin   
+float x_effective       = -x_offsetFromLaserZero + wheelBase/tan(steerAngle) ; //check steering angle = 0 case in code
+radius                  = sqrt ( pow(y_effective,2) + pow(x_effective,2) );
+float thetaToTruckStart = asin((wheelBase + laserToSteer)/radius);
+float thetaAtPoint      = asin(y_effective/radius);
+lengthUntilTruck        = radius*(thetaAtPoint - thetaToTruckStart);
+cout << " radius is found to be : " << radius << "  length until truck is " << lengthUntilTruck << " Theta to truck start " << thetaToTruckStart << " Theta at point "  << thetaAtPoint << "\n";
+return;
+}       
+
+
+
+
+
+
+
+
 void updateVerts()
 {
     //vertices = new osg::Vec3Array(NUM_VERTS);
@@ -382,6 +410,24 @@ void updateVerts()
         int x = meas * cos(rads);
         int y = meas * sin(rads);
         int z = 0;
+////////////////////////// start edits for fields during turns////////////////
+
+        float radiusObstacle;
+        float lengthToObstacle;
+        float radiusRightExtreme;
+        float radiusLeftExtreme;
+        float dummy;
+        findRadius(3.14/4 , x , y , radiusObstacle, lengthToObstacle); // radius and length to truck of obstacle
+        findRadius(3.14/4 , axleLength/2 + x_width , 0 , radiusRightExtreme, dummy );
+        findRadius(3.14/4 , -(axleLength/2 + x_width) , 0 , radiusLeftExtreme, dummy);
+        
+        
+//        if ~((radiusObstacle >= radiusLeftExtreme)^(radiusObstacle <= radiusRigtExtreme))   //obstacle in field
+  //      {
+//		if(lengthObstacle)
+
+
+
 	//saving the angle for the closest measurement
 	if((int)meas < closest_meas && y>0){
 		closest_meas = meas;
@@ -837,11 +883,6 @@ cout << "after  " << "Coef3" << coefOrder3 << "\n" << "coef2" << coefOrder2 << "
     status = connect(socketfd, host_info_list->ai_addr, host_info_list->ai_addrlen);
     if (status == -1)  printf ("connect error\n") ;
     else printf ("Connection successful, lets go grab some data\n") ;
-    
-    /*cout << "Receiving complete. Closing socket..." << endl;
-    freeaddrinfo(host_info_list);
-    close(socketfd);
-    return 0;*/
 
 #define SERIAL_ONLY_TEST 0
 #if SERIAL_TEST
@@ -849,7 +890,6 @@ cout << "after  " << "Coef3" << coefOrder3 << "\n" << "coef2" << coefOrder2 << "
         updateData();
         for (int range=1; range<542; range++) {
             printf("%d %u ", range, scanData[range]);
-
         }
         printf("\n");
     }
