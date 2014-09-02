@@ -64,12 +64,11 @@ osgText::Text* myText = new osgText::Text();
 #endif
 
 inline double deg2rad(const double val) { return val*0.0174532925199432957692369076848861;}
-
+inline double rad2deg(const double val) { return val/0.0174532925199432957692369076848861;}
 ///////////////////////////////global variables //////
 float wheelBase    = 30;
 float axleLength   = 40;
 float laserToSteer = 10;
-
 
 float coefOrder6 = 0.0;  
 float coefOrder5 = 0.0; 
@@ -364,10 +363,10 @@ double tdist;
 void findRadius(float steerAngle,float x_offsetFromLaserZero,float y_offsetFromLaserZero, float &radius, float &lengthUntilTruck)  //wheelBase = dist from steering wheel to read wheel axle, and the x_offset , y_offsetFromLaserZero are offsets from the origin in from of robot
 {
 //From global     wheelBase, axleLength , x_width, laserToSteer
-cout << "Enter the x_offset from the laser of the truck: ";
-cin  >> x_offsetFromLaserZero;
-cout << "Enter the y_offsetFromLaserZero from the laser of the truck: " ;
-cin  >> y_offsetFromLaserZero; 
+//cout << "Enter the x_offset from the laser of the truck: ";
+//cin  >> x_offsetFromLaserZero;
+//cout << "Enter the y_offsetFromLaserZero from the laser of the truck: " ;
+//cin  >> y_offsetFromLaserZero; 
 float y_effective = y_offsetFromLaserZero + wheelBase + laserToSteer; //y_offsetFromLaserZero positive if infront of truck, vice versa.mesured from laser data origin   
 float x_effective       = -x_offsetFromLaserZero + wheelBase/tan(steerAngle) ; //check steering angle = 0 case in code
 radius                  = sqrt ( pow(y_effective,2) + pow(x_effective,2) );
@@ -388,11 +387,14 @@ return;
 void updateVerts()
 {
     //vertices = new osg::Vec3Array(NUM_VERTS);
-    double angle=0.0;
+    double angle = 0.0;
     int px = 0, py = 0, pz = 0;
     stop = 541;
     closest_y_cm = 5000; //max distance is 3000cm = 30meters = 30000mm
     int closest_meas = 5000;
+    float ratio;
+    bool FLAG_STRAIGHT_FIELD = true; 
+    float tillerAngle;
     //for (int scanIndex = 0; scanIndex<542; scanIndex++) {
     for (int scanIndex = 0; scanIndex<541; scanIndex++) {
         unsigned int meas = scanData[scanIndex];
@@ -411,21 +413,33 @@ void updateVerts()
         int y = meas * sin(rads);
         int z = 0;
 ////////////////////////// start edits for fields during turns////////////////
-
         float radiusObstacle;
         float lengthToObstacle;
         float radiusRightExtreme;
         float radiusLeftExtreme;
         float dummy;
-        findRadius(3.14/4 , x , y , radiusObstacle, lengthToObstacle); // radius and length to truck of obstacle
-        findRadius(3.14/4 , axleLength/2 + x_width , 0 , radiusRightExtreme, dummy );
-        findRadius(3.14/4 , -(axleLength/2 + x_width) , 0 , radiusLeftExtreme, dummy);
         
-        
-//        if ~((radiusObstacle >= radiusLeftExtreme)^(radiusObstacle <= radiusRigtExtreme))   //obstacle in field
-  //      {
-//		if(lengthObstacle)
+        if (abs(rad2deg(angle)) > 5)   //check turning
+        {
+		findRadius(tillerAngle , x , y , radiusObstacle, lengthToObstacle); // radius and length to truck of obstacle
+        	findRadius(tillerAngle , axleLength/2 + x_width , 0 , radiusRightExtreme, dummy );
+        	findRadius(tillerAngle , -(axleLength/2 + x_width) , 0 , radiusLeftExtreme, dummy);
+		FLAG_STRAIGHT_FIELD = false;
 
+		if  (~((radiusObstacle >= radiusLeftExtreme)^(radiusObstacle <= radiusRightExtreme)))   //obstacle in field
+		{
+			if (~(abs(lengthToObstacle) >= (radiusLeftExtreme + radiusRightExtreme)*3.14159265359/2)) // obstacle beyond 
+			{	
+				tdist = abs(lengthToObstacle)-(y_forward+y_brakezone);
+			}
+			else
+			{
+				tdist = y_distance;
+			}
+			
+		}
+	}
+	
 
 
 	//saving the angle for the closest measurement
@@ -492,13 +506,16 @@ void updateVerts()
         //printf ("scan: %s, index: %d, r: %u, deg: %.1f, rad: %0.4f x: %d, y: %d, z: %d\n", scanNumber, scanIndex, meas, degrees, rads, x, y, z);
     }
 
-    tdist = closest_y_cm - (y_forward+y_brakezone);  
-    cout << "Tdist is " << tdist << "\n" ;
-    float ratio = tdist/(y_distance - (y_forward+y_brakezone));
-    if (tdist > y_distance){
-        ratio = 1;}             
-    if (tdist < 0){
-	tdist = 0;}
+    if (FLAG_STRAIGHT_FIELD)
+    {
+    	tdist = closest_y_cm - (y_forward+y_brakezone);  
+    }
+   	cout << "Tdist is " << tdist << "\n" ;
+    	ratio = tdist/(y_distance - (y_forward+y_brakezone));
+    	if (tdist > y_distance){
+        	ratio = 1;}             
+    	if (tdist < 0){
+		tdist = 0;}
     //speed = sqrt (2.0*tdist * decel_cm);
     //speed = 7*pow (tdist/(y_distance),2)/3;
     //speed = pow(tdist/(2*y_fullspeed),1.5);
