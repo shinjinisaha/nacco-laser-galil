@@ -20,6 +20,8 @@
 #include <ostream>
 #include <netdb.h> 
 #include <math.h>
+ 
+#define VIEWER 1
 
 #ifdef VIEWER
 #include <osgViewer/Viewer>
@@ -45,7 +47,7 @@ using namespace std;
 #define OBSTRUCTION_ANGLE_REGISTER 15
 #define BRAKE_COIL 10
 //modbus_t *ctx;
-
+//#define VIEWER 1
 #ifdef VIEWER
 osgViewer::Viewer viewer;
 osg::Vec3Array* stopVertices = new osg::Vec3Array(NUM_VERTS);
@@ -375,7 +377,7 @@ float x_effective       = -x_offsetFromLaserZero + wheelBase/tan(steerAngle) ; /
 radius                  = sqrt ( pow(y_effective,2) + pow(x_effective,2) );
 float thetaToTruckStart = asin((wheelBase + laserToSteer)/radius);
 float thetaAtPoint      = asin(y_effective/radius);
-lengthUntilTruck        = abs(radius*(thetaAtPoint - thetaToTruckStart));
+lengthUntilTruck        = (radius*(thetaAtPoint - thetaToTruckStart));
 //cout << " radius is found to be : " << radius << "  length until truck is " << lengthUntilTruck << " Theta to truck start " << thetaToTruckStart << " Theta at point "  << thetaAtPoint << "\n";
 return;
 }       
@@ -403,10 +405,10 @@ int closest_r_cm = 5000;
 
 
     response    = getResponseForMsg("MG_ TPB\r");  //, sizeof locMsg );
-    tillerAngle = atoi(response.c_str());
+    tillerAngle = -atof(response.c_str())/27.7778;
     cout << " tillerAngleObserved is " << tillerAngle << endl;
 
-    tillerAngle = -45;
+   // tillerAngle = 45;
         float radiusRightExtreme;
         float radiusLeftExtreme;
         float dummy;
@@ -435,14 +437,15 @@ cout << " extremes are  " << radiusRightExtreme  << " and " << radiusLeftExtreme
         float radiusObstacle;
         float lengthToObstacle;
         float dummy;
-        
+if ((scanIndex > 90) && (scanIndex < 541-90))    //consider only the 180 degrees in front of the truck
+{       
         if (abs(tillerAngle) > 5)   //check turning
         {
 		findRadius(tillerAngle , x , y , radiusObstacle, lengthToObstacle); // radius and length to truck of obstacle
 		FLAG_STRAIGHT_FIELD = false;
 		if  ( (radiusObstacle-radiusLeftExtreme)*(radiusObstacle-radiusRightExtreme) < 0)   //obstacle in field
 		{
-	       // cout << "value of obstacle is " << radiusObstacle   << " and length is " << lengthToObstacle <<  endl ;	
+	        cout << "value of obstacle is " << radiusObstacle   << " and length is " << lengthToObstacle <<  endl ;	
 			if (lengthToObstacle < closest_r_cm)
 			{
 				closest_r_cm = lengthToObstacle;
@@ -450,7 +453,7 @@ cout << " extremes are  " << radiusRightExtreme  << " and " << radiusLeftExtreme
 			
 		}
 	}
-	
+}	
 
 
 	//saving the angle for the closest measurement
