@@ -437,9 +437,9 @@ cout << " extremes are  " << radiusRightExtreme  << " and " << radiusLeftExtreme
         float radiusObstacle;
         float lengthToObstacle;
         float dummy;
-if ((scanIndex > 90) && (scanIndex < 541-90))    //consider only the 180 degrees in front of the truck
+if ((scanIndex > 110) && (scanIndex < 541-110))    //consider only the 180 degrees in front of the truck
 {       
-        if (abs(tillerAngle) > 5)   //check turning
+        if (abs(tillerAngle) > 13)   //check turning
         {
 		findRadius(tillerAngle , x , y , radiusObstacle, lengthToObstacle); // radius and length to truck of obstacle
 		FLAG_STRAIGHT_FIELD = false;
@@ -521,22 +521,28 @@ if ((scanIndex > 90) && (scanIndex < 541-90))    //consider only the 180 degrees
     }
 
 cout << " RE " << radiusRightExtreme << " LE " << radiusLeftExtreme <<  " closest_r_c " << closest_r_cm << endl;
-    if (closest_r_cm > ((radiusLeftExtreme + radiusRightExtreme)*3.14159265359/2)) {
+    if (closest_r_cm > ((radiusLeftExtreme + radiusRightExtreme)*3.14159265359*2/3)) {
 	closest_r_cm = y_distance;}
     if (FLAG_STRAIGHT_FIELD)
     {
     	tdist = closest_y_cm - (y_forward+y_brakezone);  
+	if (tdist > y_distance){
+                tdist = y_distance;}
+    	if (tdist < 0){
+                tdist = 0;}
+    	ratio = tdist/(y_distance - (y_forward+y_brakezone));
     }
+
     else 
     {
-	tdist = closest_r_cm - (y_forward + y_brakezone);
+	tdist = closest_r_cm-y_brakezone;
+	if (tdist > y_distance-y_brakezone){
+                tdist = y_distance-y_brakezone;}
+    	if (tdist < 0){
+                tdist = 0;}
+   	ratio = (tdist)/(y_distance - y_brakezone);
     }
    cout << " Tdist is " << tdist << " with bool value " << FLAG_STRAIGHT_FIELD << "\n" ;
-    if (tdist > y_distance){
-        	tdist = y_distance;}             
-    if (tdist < 0){
-		tdist = 0;}
-    ratio = tdist/(y_distance - (y_forward+y_brakezone));
  
     //speed = sqrt (2.0*tdist * decel_cm);
     //speed = 7*pow (tdist/(y_distance),2)/3;
