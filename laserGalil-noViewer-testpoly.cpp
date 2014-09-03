@@ -21,7 +21,7 @@
 #include <netdb.h> 
 #include <math.h>
  
-#define VIEWER 1
+//#define VIEWER 1
 
 #ifdef VIEWER
 #include <osgViewer/Viewer>
