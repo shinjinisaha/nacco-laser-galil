@@ -82,7 +82,7 @@ float coefOrder1 = 1.482;
 float coefOrder0 = -0.04665;
 
 float testFloat = 1.234;
-float  x_width =  83;  // 33 inches in cm
+float  x_width =  75;  // 33 inches in cm
         //distance of the stop field
         // 48 inches in cm
 float  y_forward =  122; 
@@ -521,7 +521,7 @@ if ((scanIndex > 110) && (scanIndex < 541-110))    //consider only the 180 degre
     }
 
 cout << " RE " << radiusRightExtreme << " LE " << radiusLeftExtreme <<  " closest_r_c " << closest_r_cm << endl;
-    if (closest_r_cm > ((radiusLeftExtreme + radiusRightExtreme)*3.14159265359*2/3)) {
+    if (closest_r_cm > ((radiusLeftExtreme + radiusRightExtreme)*3.14159265359/2)) {
 	closest_r_cm = y_distance;}
     if (FLAG_STRAIGHT_FIELD)
     {
