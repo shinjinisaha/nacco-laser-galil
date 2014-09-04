@@ -364,16 +364,11 @@ int stop;
 double speed;
 double tdist;
 
-void findRadius(float steerAngle,float x_offsetFromLaserZero,float y_offsetFromLaserZero, float &radius, float &lengthUntilTruck)  //wheelBase = dist from steering wheel to read wheel axle, and the x_offset , y_offsetFromLaserZero are offsets from the origin in from of robot
+void findRadius(float steerAngle,float x_offsetFromLaserZero,float y_offsetFromLaserZero, float &radius, float &lengthUntilTruck)
 {
-//From global     wheelBase, axleLength , x_width, laserToSteer
-//cout << "Enter the x_offset from the laser of the truck: ";
-//cin  >> x_offsetFromLaserZero;
-//cout << "Enter the y_offsetFromLaserZero from the laser of the truck: " ;
-//cin  >> y_offsetFromLaserZero; 
 steerAngle = deg2rad(steerAngle);
-float y_effective = y_offsetFromLaserZero + wheelBase + laserToSteer; //y_offsetFromLaserZero positive if infront of truck, vice versa.mesured from laser data origin   
-float x_effective       = -x_offsetFromLaserZero + wheelBase/tan(steerAngle) ; //check steering angle = 0 case in code
+float y_effective = y_offsetFromLaserZero + wheelBase + laserToSteer;
+float x_effective       = -x_offsetFromLaserZero + wheelBase/tan(steerAngle); //use only when abs(angle) > 10 , to avoid div by 0 
 radius                  = sqrt ( pow(y_effective,2) + pow(x_effective,2) );
 float thetaToTruckStart = asin((wheelBase + laserToSteer)/radius);
 float thetaAtPoint      = asin(y_effective/radius);
@@ -381,12 +376,6 @@ lengthUntilTruck        = (radius*(thetaAtPoint - thetaToTruckStart));
 //cout << " radius is found to be : " << radius << "  length until truck is " << lengthUntilTruck << " Theta to truck start " << thetaToTruckStart << " Theta at point "  << thetaAtPoint << "\n";
 return;
 }       
-
-
-
-
-
-
 
 
 void updateVerts()
@@ -404,8 +393,8 @@ void updateVerts()
 int closest_r_cm = 5000;
 
 
-    response    = getResponseForMsg("MG_ TPB\r");  //, sizeof locMsg );
-    tillerAngle = -atof(response.c_str())/27.7778;
+    response    = getResponseForMsg("MG_ TPB\r");   // the tiller angle,
+    tillerAngle = -atof(response.c_str())/27.7778;  // convert to the convention and scale here. (-pi/2 ,pi/2)
     cout << " tillerAngleObserved is " << tillerAngle << endl;
 
    // tillerAngle = 45;
@@ -429,17 +418,18 @@ cout << " extremes are  " << radiusRightExtreme  << " and " << radiusLeftExtreme
             degrees += 360.0;
         }
 
-        double rads = deg2rad(degrees);  //convert to radians for trig 
-        int x = meas * cos(rads);
-        int y = meas * sin(rads);
-        int z = 0;
-////////////////////////// start edits for fields during turns////////////////
-        float radiusObstacle;
-        float lengthToObstacle;
-        float dummy;
-if ((scanIndex > 110) && (scanIndex < 541-110))    //consider only the 180 degrees in front of the truck
+    double rads = deg2rad(degrees);  //convert to radians for trig 
+    int x = meas * cos(rads);
+    int y = meas * sin(rads);
+    int z = 0;
+    float radiusObstacle;
+    float lengthToObstacle;
+    float dummy;
+
+
+if ((scanIndex > 110) && (scanIndex < 541-110))    //consider only about 160 degrees in front of the truck
 {       
-        if (abs(tillerAngle) > 13)   //check turning
+        if (abs(tillerAngle) > 13)   //check turning, use straight field is steering is low
         {
 		findRadius(tillerAngle , x , y , radiusObstacle, lengthToObstacle); // radius and length to truck of obstacle
 		FLAG_STRAIGHT_FIELD = false;
@@ -521,7 +511,7 @@ if ((scanIndex > 110) && (scanIndex < 541-110))    //consider only the 180 degre
     }
 
 cout << " RE " << radiusRightExtreme << " LE " << radiusLeftExtreme <<  " closest_r_c " << closest_r_cm << endl;
-    if (closest_r_cm > ((radiusLeftExtreme + radiusRightExtreme)*3.14159265359/2)) {
+    if (closest_r_cm > ((radiusLeftExtreme + radiusRightExtreme)*3.14159265359/4)) { //look ahead of pi/4 for the current center of rotation 
 	closest_r_cm = y_distance;}
     if (FLAG_STRAIGHT_FIELD)
     {
@@ -535,7 +525,7 @@ cout << " RE " << radiusRightExtreme << " LE " << radiusLeftExtreme <<  " closes
 
     else 
     {
-	tdist = closest_r_cm-y_brakezone;
+	tdist = closest_r_cm-y_brakezone;    //ignore buffer, cause we will go slow in turns anyways
 	if (tdist > y_distance-y_brakezone){
                 tdist = y_distance-y_brakezone;}
     	if (tdist < 0){
