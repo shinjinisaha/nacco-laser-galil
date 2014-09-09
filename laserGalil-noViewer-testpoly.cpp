@@ -72,7 +72,8 @@ float wheelBase    = 48.0*2.54;   //48 inches
 float axleLength   = 26.5*2.54;   //26.5 inches 
 float laserToSteer = 11.5*2.54;   //11.5 inches 
 float r_lookahead  = 150;         //1.5 meter lookahead
-
+float r_forward    = 80;
+float r_brakezone = 20; // 20 cm of brakezone / buffer for radial curves 
 
 float coefOrder6 = 0.0;
 float coefOrder5 = 0.0; 
@@ -98,17 +99,6 @@ float y_fullspeed =  0.5*pow(velocity_cm,2)/decel_cm;
 float y_brakezone = 61;// y_fullspeed; //61
         // this is the total distance of the stop field plus the decel zone 
 float y_distance =  (y_forward+y_brakezone+y_fullspeed);
-
-float y_radialBuffer = 20; // 20 cm of brakezone / buffer for radial curves 
-
-float sigmoid(float x)
-{
-     float exp_value;
-     float return_value;
-     exp_value = exp((double) -x);
-     return_value = 1 / (1 + exp_value);
-     return return_value;
-}
 
 
 int fd_serialport;
@@ -371,10 +361,6 @@ double tdist;
 
 void findRadius(float steerAngle,float x_offsetFromLaserZero,float y_offsetFromLaserZero, float &radius, float &lengthUntilTruck)
 {
-//cout << "Enter the x_offset from the laser of the truck: ";
-//cin  >> x_offsetFromLaserZero;
-//cout << "Enter the y_offset from the laser of the truck: " ;
-//cin  >> y_offsetFromLaserZero;
 
 steerAngle = deg2rad(steerAngle);
 float y_effective       = y_offsetFromLaserZero + wheelBase + laserToSteer;
@@ -383,38 +369,15 @@ float x_zero		= - wheelBase/tan(steerAngle);
 //cout << "X effective is " << x_effective << " y effective is " << y_effective << endl;
 radius                  = sqrt ( pow(y_effective,2) + pow(x_effective,2) );
 float thetaToTruckStart = atan2((wheelBase+laserToSteer),x_zero);
-//float thetaAtPoint      = asin(y_effective/radius);
 float thetaAtPoint      = atan2(y_effective,x_effective);
 lengthUntilTruck        = radius*(thetaAtPoint - thetaToTruckStart)*((steerAngle < 0) - (steerAngle > 0));///sqrt(steerAngle*steerAngle)) last part is to get -1 for +ve and +1 for negative
 //globalThingAngle[0]     = thetaAtPoint;
 //globalThingAngle[1]     = thetaToTruckStart;
 //globalThingAngle[2]     = lengthUntilTruck/radius;
-//cout << " radius is found to be : " << radius << "  length until truck is " << lengthUntilTruck << " Theta to truck start " << thetaToTruckStart << " Theta at point "  << thetaAtPoint << " and angle is " << lengthUntilTruck/radius << "\n";
-//cout << " radius is found to be : " << radius << "  length until truck is " << lengthUntilTruck << " Theta to truck start " << thetaToTruckStart << " Theta at point "  << thetaAtPoint << "\n";
 return;
 }
 
 
-
-/*
-
-void findRadius(float steerAngle,float x_offsetFromLaserZero,float y_offsetFromLaserZero, float &radius, float &lengthUntilTruck)
-{
-steerAngle = deg2rad(steerAngle);
-float y_effective 	= y_offsetFromLaserZero + wheelBase + laserToSteer;
-float x_effective       = x_offsetFromLaserZero - wheelBase/tan(steerAngle); //use only when abs(angle) > 10 , to avoid div by 0 
-radius                  = sqrt ( pow(y_effective,2) + pow(x_effective,2) );
-float thetaToTruckStart = atan((wheelBase + laserToSteer)/x_effective);
-//float thetaAtPoint      = asin(y_effective/radius);
-float thetaAtPoint      = atan(y_effective/x_effective);
-lengthUntilTruck        = radius*(thetaAtPoint - thetaToTruckStart);
-globalThingAngle[0]     = thetaAtPoint;
-globalThingAngle[1]	= thetaToTruckStart;
-globalThingAngle[2]	= lengthUntilTruck/radius;
-//cout << " radius is found to be : " << radius << "  length until truck is " << lengthUntilTruck << " Theta to truck start " << thetaToTruckStart << " Theta at point "  << thetaAtPoint << "\n";
-return;
-}       
-*/
 
 void updateVerts()
 {
@@ -564,29 +527,24 @@ if ((scanIndex > 100) && (scanIndex < 541-100))    //consider only about 160 deg
                 tdist = y_distance;}
     	if (tdist < 0){
                 tdist = 0;}
+
     	ratio = tdist/(y_distance - (y_forward+y_brakezone));
+	speed =coefOrder6*pow(ratio,6)+coefOrder5*pow(ratio,5)+coefOrder4*pow(ratio,4)+ coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
+
     }
 
     else 
     {
-	tdist = closest_r_cm - y_forward- y_radialBuffer ;    //ignore buffer, cause we will go slow in turns anyways
-
+	tdist = closest_r_cm - r_forward- r_brakezone ;    //ignore buffer, cause we will go slow in turns anyways
 	//cout << "tdist observed is radial is " << tdist << endl;
 	if (tdist > r_lookahead ){
                 tdist =r_lookahead ;}
     	if (tdist < 0){
                 tdist = 0;}
    	ratio = (tdist)/(r_lookahead);
+	speed = ratio; //(linear relation with slope 1)
     }
-   //cout << " Tdist is " << tdist << " with bool value " << FLAG_STRAIGHT_FIELD << "\n" ;
- 
-    //speed = sqrt (2.0*tdist * decel_cm);
-    //speed = 7*pow (tdist/(y_distance),2)/3;
-    //speed = pow(tdist/(2*y_fullspeed),1.5);
-//    speed = coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
-  
 
-    speed =coefOrder6*pow(ratio,6)+coefOrder5*pow(ratio,5)+coefOrder4*pow(ratio,4)+ coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
     cout << "tdist is " << tdist << " and ratio is " << ratio << " and speed value is " << speed <<   "\n";
     if (speed > 1) speed = 1;
     if (speed < 0) speed = 0;
@@ -605,12 +563,8 @@ if ((scanIndex > 100) && (scanIndex < 541-100))    //consider only about 160 deg
     float percent_speed = speed;
     sprintf(speedChar,"%f",percent_speed);
     sendGalilFullCommand = sendCommand+speedChar+"\r"; 
-    //printf("The sent command is %s\n",sendGalilFullCommand);
-    //cout << "Sent command is " << sendGalilFullCommand << "\n" ; 
-//    response = getResponseForMsg("MG_ TPB\r");  //, sizeof locMsg );
     response = getResponseForMsg(sendGalilFullCommand);  //, sizeof locMsg );
-    //cout << "Full Response: " <<response << " and count is " << count << endl;
-//    cout << "The response is lalalalla" << std::string::stof(response) << " and the value after scaling is "  << std::stof(response)*27.77 << "\n" ; 
+
      printf("Full Response: %s \n", response.c_str()); 
     
     printf("epoch: %d, scanNumber: %s, totalBytesRead: %d, stop: %d, closest_y: %d, closest_reading:%d angle: %f speed: %f percent_speed: %f \n", (int)time(0), scanNumber, totalBytesRead, stop, closest_y_cm, closest_meas, angle, speed, percent_speed);
