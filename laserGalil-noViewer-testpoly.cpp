@@ -71,7 +71,7 @@ inline double rad2deg(const double val) { return val/0.0174532925199432957692369
 float wheelBase    = 48.0*2.54;   //48 inches
 float axleLength   = 26.5*2.54;   //26.5 inches 
 float laserToSteer = 11.5*2.54;   //11.5 inches 
-float r_lookahead  = 100;         //1 meter lookahead
+float r_lookahead  = 150;         //1.5 meter lookahead
 
 
 float coefOrder6 = 0.0;
@@ -99,7 +99,7 @@ float y_brakezone = 61;// y_fullspeed; //61
         // this is the total distance of the stop field plus the decel zone 
 float y_distance =  (y_forward+y_brakezone+y_fullspeed);
 
-float y_radialBuffer = 0; // variable created specifically for 
+float y_radialBuffer = 20; // 20 cm of brakezone / buffer for radial curves 
 
 float sigmoid(float x)
 {
@@ -369,17 +369,6 @@ double tdist;
 
 //float globalThingAngle[3];
 
-
-float TanInRange(float x, float y)
-{
-        float angle = atan(y/x);
-        if (angle < 0)
-        {
-                angle = 3.141592653589793 + angle;
-        }
-}
-
-
 void findRadius(float steerAngle,float x_offsetFromLaserZero,float y_offsetFromLaserZero, float &radius, float &lengthUntilTruck)
 {
 //cout << "Enter the x_offset from the laser of the truck: ";
@@ -390,12 +379,13 @@ void findRadius(float steerAngle,float x_offsetFromLaserZero,float y_offsetFromL
 steerAngle = deg2rad(steerAngle);
 float y_effective       = y_offsetFromLaserZero + wheelBase + laserToSteer;
 float x_effective       = x_offsetFromLaserZero - wheelBase/tan(steerAngle); //use only when abs(angle) > 10 , to avoid div by 0 
+float x_zero		= - wheelBase/tan(steerAngle);
 //cout << "X effective is " << x_effective << " y effective is " << y_effective << endl;
 radius                  = sqrt ( pow(y_effective,2) + pow(x_effective,2) );
-float thetaToTruckStart = TanInRange((wheelBase+laserToSteer),x_effective);
+float thetaToTruckStart = atan2((wheelBase+laserToSteer),x_zero);
 //float thetaAtPoint      = asin(y_effective/radius);
-float thetaAtPoint      = TanInRange(y_effective,x_effective);
-lengthUntilTruck        = radius*(thetaAtPoint - thetaToTruckStart)*(-steerAngle/sqrt(steerAngle*steerAngle));
+float thetaAtPoint      = atan2(y_effective,x_effective);
+lengthUntilTruck        = radius*(thetaAtPoint - thetaToTruckStart)*((steerAngle < 0) - (steerAngle > 0));///sqrt(steerAngle*steerAngle)) last part is to get -1 for +ve and +1 for negative
 //globalThingAngle[0]     = thetaAtPoint;
 //globalThingAngle[1]     = thetaToTruckStart;
 //globalThingAngle[2]     = lengthUntilTruck/radius;
@@ -443,7 +433,7 @@ void updateVerts()
 
     response    = getResponseForMsg("MG_ TPB\r");   // the tiller angle,
     tillerAngle = -atof(response.c_str())/27.7778;  // convert to the convention and scale here. (-pi/2 ,pi/2)
-    //cout << " tillerAngleObserved is " << tillerAngle << endl;
+    cout << " tillerAngleObserved is " << tillerAngle << endl;
 
     tillerAngle = 45;
         float radiusRightExtreme;
@@ -451,7 +441,7 @@ void updateVerts()
         float dummy;
 
 	findRadius(tillerAngle , axleLength/2 + x_width ,  0 , radiusRightExtreme, dummy );
-        findRadius(tillerAngle , -(axleLength/2 + x_width) , -100 , radiusLeftExtreme, dummy);
+        findRadius(tillerAngle , -(axleLength/2 + x_width) , 0 , radiusLeftExtreme, dummy);
 
 //cout << " extremes are  " << radiusRightExtreme  << " and " << radiusLeftExtreme << " \n";
     //for (int scanIndex = 0; scanIndex<542; scanIndex++) {
@@ -486,7 +476,7 @@ if ((scanIndex > 100) && (scanIndex < 541-100))    //consider only about 160 deg
 	        //cout << "value of obstacle is " << radiusObstacle   << " and length is " << lengthToObstacle <<  endl ;	
 			if (lengthToObstacle < closest_r_cm)
 			{
-			//	cout << "glbal thing angle is " << globalThingAngle[0] << " angle to truck is " << globalThingAngle[1] << " and the difference is " << globalThingAngle[2]  << endl;
+//				cout << "glbal thing angle is " << globalThingAngle[0] << " angle to truck is " << globalThingAngle[1] << " and the difference is " << globalThingAngle[2]  << endl;
 				closest_r_cm = lengthToObstacle;
 			}
 			
@@ -561,6 +551,7 @@ if ((scanIndex > 100) && (scanIndex < 541-100))    //consider only about 160 deg
 
 //cout << " RE " << radiusRightExtreme << " LE " << radiusLeftExtreme <<  " closest_r_c " << closest_r_cm << endl;
     //if (closest_r_cm > ((radiusLeftExtreme + radiusRightExtreme)*3.14159265359*2/3)) { //look ahead of pi/4 for the current center of rotation 
+	cout << "closest_r_ cm si " << closest_r_cm << endl;
     if (closest_r_cm > y_forward + r_lookahead)
     {
 	closest_r_cm = y_distance;
@@ -578,14 +569,14 @@ if ((scanIndex > 100) && (scanIndex < 541-100))    //consider only about 160 deg
 
     else 
     {
-	tdist = closest_r_cm-y_forward - y_radialBuffer ;    //ignore buffer, cause we will go slow in turns anyways
+	tdist = closest_r_cm - y_forward- y_radialBuffer ;    //ignore buffer, cause we will go slow in turns anyways
 
 	//cout << "tdist observed is radial is " << tdist << endl;
-	if (tdist > y_distance-y_forward - y_radialBuffer){
-                tdist = y_distance-y_forward- y_radialBuffer;}
+	if (tdist > r_lookahead ){
+                tdist =r_lookahead ;}
     	if (tdist < 0){
                 tdist = 0;}
-   	ratio = (tdist)/(y_distance - y_brakezone - y_radialBuffer);
+   	ratio = (tdist)/(r_lookahead);
     }
    //cout << " Tdist is " << tdist << " with bool value " << FLAG_STRAIGHT_FIELD << "\n" ;
  
@@ -596,7 +587,7 @@ if ((scanIndex > 100) && (scanIndex < 541-100))    //consider only about 160 deg
   
 
     speed =coefOrder6*pow(ratio,6)+coefOrder5*pow(ratio,5)+coefOrder4*pow(ratio,4)+ coefOrder3*pow(ratio,3)+coefOrder2*pow(ratio,2)+coefOrder1*pow(ratio,1)+coefOrder0*pow(ratio,0);
-    //cout << "tdist is " << tdist << " and ratio is " << ratio << " and speed value is " << speed <<   "\n";
+    cout << "tdist is " << tdist << " and ratio is " << ratio << " and speed value is " << speed <<   "\n";
     if (speed > 1) speed = 1;
     if (speed < 0) speed = 0;
     if (stop) speed = 0;
