@@ -21,7 +21,7 @@
 #include <netdb.h> 
 #include <math.h>
  
-#define VIEWER 1
+//#define VIEWER 1
 
 #ifdef VIEWER
 #include <osgViewer/Viewer>
@@ -72,7 +72,7 @@ float wheelBase    = 48.0*2.54;   //48 inches
 float axleLength   = 26.5*2.54;   //26.5 inches 
 float laserToSteer = 11.5*2.54;   //11.5 inches 
 float r_lookahead  = 150;         //1.5 meter lookahead
-float r_forward    = 80;
+float r_forward    = 100;
 float r_brakezone = 20; // 20 cm of brakezone / buffer for radial curves 
 
 float coefOrder6 = 0.0;
@@ -398,7 +398,7 @@ void updateVerts()
     tillerAngle = -atof(response.c_str())/27.7778;  // convert to the convention and scale here. (-pi/2 ,pi/2)
     cout << " tillerAngleObserved is " << tillerAngle << endl;
 
-    tillerAngle = 45;
+    //tillerAngle = 45;
         float radiusRightExtreme;
         float radiusLeftExtreme;
         float dummy;
