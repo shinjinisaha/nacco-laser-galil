@@ -10,3 +10,4 @@ TODO
  * Paths relative to frame of instantaneous center    - DONE
  * Check for obstacles in rotated filed               - DONE
  * Complete dynamic fields for turns                  - DONE
+ * Note length of forks. Left and right,separate cases- DONE
